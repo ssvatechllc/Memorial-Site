@@ -1,0 +1,58 @@
+graph TB
+    %% Definitions
+    classDef client fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:white;
+    classDef security fill:#DD0000,stroke:#333,stroke-width:1px,color:white,stroke-dasharray: 5 5;
+
+    subgraph Clients ["User Interaction Layer"]
+        User(["👤 Public Visitor"])
+        Admin(["🛡️ Admin Moderator"])
+    end
+
+    subgraph AWS ["☁️ AWS Cloud Infrastructure"]
+        
+        subgraph Edge ["Edge Layer (Security & Caching)"]
+            CF[("CloudFront Distribution<br/>(HTTPS / TLS 1.3)")]
+        end
+
+        subgraph Frontend_Storage ["Static Hosting"]
+            S3_Web[("S3 Bucket: Website<br/>(React / Vite App)")]
+        end
+
+        subgraph Backend_API ["Serverless API Layer"]
+            APIGW["API Gateway<br/>(HTTP API)"]
+            
+            Lambda["Node.js Lambda<br/>(Business Logic)"]
+        end
+
+        subgraph Data_Layer ["Persistence Layer"]
+            DDB[("DynamoDB<br/>(Single Table Design)")]
+            
+            S3_Media[("S3 Bucket: Media<br/>(User Uploads)")]
+        end
+
+    end
+
+    %% Flows
+    User -->|HTTPS Request| CF
+    Admin -->|"HTTPS Request<br/>(x-admin-key)"| CF
+
+    %% CloudFront Routing
+    CF -->|"/ (Default)<br/>[OAC Secured]"| S3_Web
+    CF -->|"/prod/api/*<br/>[Verified Origin]"| APIGW
+    CF -->|"/media/*<br/>[OAC Secured]"| S3_Media
+
+    %% Integration
+    APIGW -->|Proxy Integration| Lambda
+    
+    %% Backend Logic
+    Lambda -->|Get/Put/Delete Items| DDB
+    Lambda -->|"Get Signed URLs<br/>Delete Objects"| S3_Media
+
+    %% Styling
+    class CF,S3_Web,APIGW,Lambda,DDB,S3_Media aws;
+    class User,Admin client;
+    
+    linkStyle 2 stroke:#00C851,stroke-width:2px
+    linkStyle 3 stroke:#33b5e5,stroke-width:2px
+    linkStyle 4 stroke:#00C851,stroke-width:2px
