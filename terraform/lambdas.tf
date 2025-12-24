@@ -75,9 +75,10 @@ resource "aws_lambda_function" "site_api" {
   filename      = "lambda.zip"
   function_name = "${var.project_name}-api"
   role          = aws_iam_role.lambda_role.arn
-  handler       = "index.handler" # We will create a consolidated entry point
+  handler       = "index.handler" 
   runtime       = "nodejs18.x"
   source_code_hash = filebase64sha256("lambda.zip")
+  timeout       = 30
 
   environment {
     variables = {
@@ -87,3 +88,46 @@ resource "aws_lambda_function" "site_api" {
     }
   }
 }
+
+# Video Processor Lambda
+resource "aws_lambda_function" "video_processor" {
+  filename      = "lambda.zip" # Reusing the same zip for both
+  function_name = "${var.project_name}-video-processor"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "video-processor.handler"
+  runtime       = "nodejs18.x"
+  source_code_hash = filebase64sha256("lambda.zip")
+  timeout       = 300 # Longer timeout for video uploads
+  memory_size   = 512 # More memory for processing streams
+
+  environment {
+    variables = {
+      TABLE_NAME           = aws_dynamodb_table.content_table.name
+      GOOGLE_CLIENT_ID     = var.google_client_id
+      GOOGLE_CLIENT_SECRET = var.google_client_secret
+      GOOGLE_REFRESH_TOKEN = var.google_refresh_token
+    }
+  }
+}
+
+# S3 Trigger for Video Processor
+resource "aws_lambda_permission" "allow_bucket" {
+  statement_id  = "AllowExecutionFromS3Bucket"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.video_processor.arn
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.media_bucket.arn
+}
+
+resource "aws_s3_bucket_notification" "bucket_notification" {
+  bucket = aws_s3_bucket.media_bucket.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.video_processor.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "media/"
+  }
+
+  depends_on = [aws_lambda_permission.allow_bucket]
+}
+

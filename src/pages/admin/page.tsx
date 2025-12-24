@@ -498,7 +498,20 @@ export default function AdminDashboard() {
                             <div className="absolute inset-0 flex items-center justify-center">
                               <i className="ri-play-circle-fill text-5xl text-white/80 opacity-0 group-hover:opacity-100 transition-opacity"></i>
                             </div>
-                            <span className="absolute bottom-2 right-2 bg-black/60 px-2 py-1 rounded text-[10px] text-white font-bold tracking-wider">VIDEO</span>
+                            <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                                <span className="bg-black/60 px-2 py-1 rounded text-[10px] text-white font-bold tracking-wider">VIDEO</span>
+                                {item.videoStatus === 'processing' && (
+                                    <span className="bg-amber-500/90 px-2 py-1 rounded text-[10px] text-white font-bold tracking-wider animate-pulse flex items-center">
+                                       <i className="ri-refresh-line mr-1 animate-spin"></i> PROCESSING
+                                    </span>
+                                )}
+                                {item.youtubeId && (
+                                    <span className="bg-rose-600 px-2 py-1 rounded text-[10px] text-white font-bold tracking-wider flex items-center">
+                                       <i className="ri-youtube-fill mr-1"></i> YOUTUBE
+                                    </span>
+                                )}
+                            </div>
+
                           </div>
                         ) : (
                           <img 
@@ -517,10 +530,12 @@ export default function AdminDashboard() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleAction('gallery', item.id!, 'approved')}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg text-sm font-medium transition-colors"
+                            disabled={item.key?.toLowerCase().endsWith('.mp4') && !item.youtubeId}
+                            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-sm font-medium transition-colors"
                           >
-                            Approve
+                            {item.youtubeId ? 'Approve' : 'Wait for Process'}
                           </button>
+
                           <button
                             onClick={() => handleAction('gallery', item.id!, 'deleted')}
                             className="flex-1 bg-rose-100 text-rose-700 hover:bg-rose-200 py-2 rounded-lg text-sm font-medium transition-colors"

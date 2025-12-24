@@ -91,6 +91,11 @@ resource "aws_dynamodb_table" "content_table" {
     type = "S"
   }
 
+  attribute {
+    name = "key"
+    type = "S"
+  }
+
   global_secondary_index {
     name               = "StatusIndex"
     hash_key           = "status"
@@ -98,10 +103,17 @@ resource "aws_dynamodb_table" "content_table" {
     projection_type    = "ALL"
   }
 
+  global_secondary_index {
+    name               = "KeyIndex"
+    hash_key           = "key"
+    projection_type    = "ALL"
+  }
+
   tags = {
     Project = var.project_name
   }
 }
+
 
 # 3. Frontend Hosting
 resource "aws_s3_bucket" "frontend_bucket" {

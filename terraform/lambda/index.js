@@ -71,16 +71,19 @@ exports.handler = async (event) => {
     // 4. Gallery Create (Metadata only, after S3 upload)
     if (path === "/gallery" && method === "POST") {
       const data = JSON.parse(event.body);
+      const isVideo = data.key?.toLowerCase().endsWith('.mp4') || data.key?.toLowerCase().endsWith('.mov') || data.key?.toLowerCase().endsWith('.avi');
       const item = {
         id: crypto.randomUUID(),
         type: "gallery",
         status: "pending",
         ...data,
+        videoStatus: isVideo ? "processing" : undefined,
         date: new Date().toISOString()
       };
       await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
       return response(201, { success: true });
     }
+
 
     // 5. Get Upload URL
     if (path === "/upload-url" && method === "POST") {

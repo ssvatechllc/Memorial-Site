@@ -26,6 +26,8 @@ export interface GalleryItem {
   src?: string;
   key?: string;
   status?: 'pending' | 'approved';
+  youtubeId?: string;
+  videoStatus?: 'processing' | 'processed' | 'failed';
 }
 
 export interface UploadResponse {

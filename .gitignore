@@ -57,3 +57,8 @@ yarn.lock
 pnpm-lock.yaml
 public/assets/images/
 custom/media/
+
+# Archives
+*.zip
+lambda.zip
+

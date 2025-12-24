@@ -15,3 +15,24 @@ variable "admin_key" {
   type        = string
   sensitive   = true
 }
+
+variable "google_client_id" {
+  description = "Google OAuth Client ID"
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth Client Secret"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "google_refresh_token" {
+  description = "Google OAuth Refresh Token"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+

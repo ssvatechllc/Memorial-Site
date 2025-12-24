@@ -37,8 +37,13 @@ fi
 # 3. Package Lambda
 echo "📦 Packaging Lambda function..."
 cd terraform/lambda
-zip -r ../lambda.zip index.js
+if [ ! -d "node_modules" ]; then
+  echo "📥 Installing Lambda dependencies..."
+  npm install
+fi
+zip -r ../lambda.zip .
 cd ../..
+
 
 # 4. Terraform Initialization
 echo "⚙️ Initializing Terraform..."
@@ -58,16 +63,27 @@ terraform init -reconfigure
 
 # 5. Terraform Plan & Apply
 echo "📝 Applying Infrastructure changes..."
-# We need the admin key for variables
+# We need the variables for the deployment
 if [ -f "../.env" ]; then
   ADMIN_KEY=$(grep VITE_ADMIN_KEY "../.env" | cut -d '=' -f2)
-elif [ -f ".env" ]; then
-  ADMIN_KEY=$(grep VITE_ADMIN_KEY ".env" | cut -d '=' -f2)
+  G_CLIENT_ID=$(grep GOOGLE_CLIENT_ID "../.env" | cut -d '=' -f2)
+  G_CLIENT_SECRET=$(grep GOOGLE_CLIENT_SECRET "../.env" | cut -d '=' -f2)
+  G_REFRESH_TOKEN=$(grep GOOGLE_REFRESH_TOKEN "../.env" | cut -d '=' -f2)
 else
   ADMIN_KEY="temp-admin-key"
+  G_CLIENT_ID=""
+  G_CLIENT_SECRET=""
+  G_REFRESH_TOKEN=""
 fi
 
-terraform apply -auto-approve -var="admin_key=$ADMIN_KEY" -var="aws_region=$REGION" -var="project_name=$PROJECT_NAME"
+terraform apply -auto-approve \
+  -var="admin_key=$ADMIN_KEY" \
+  -var="aws_region=$REGION" \
+  -var="project_name=$PROJECT_NAME" \
+  -var="google_client_id=$G_CLIENT_ID" \
+  -var="google_client_secret=$G_CLIENT_SECRET" \
+  -var="google_refresh_token=$G_REFRESH_TOKEN"
+
 
 # 6. Extract Outputs
 API_URL=$(terraform output -raw api_url)
@@ -79,6 +95,7 @@ cd ..
 # 7. Build Frontend
 echo "🏗️ Building Frontend..."
 export VITE_AWS_API_URL="${CF_URL}/prod"
+rm -rf out
 npm run build
 
 # 8. Deploy Frontend

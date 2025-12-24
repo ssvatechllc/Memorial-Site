@@ -55,8 +55,10 @@ export default function Gallery() {
       p.key?.toLowerCase().endsWith('.mp4') || p.key?.toLowerCase().endsWith('.mov') || p.key?.toLowerCase().endsWith('.avi') ? 'video' :
       p.key?.toLowerCase().endsWith('.mp3') || p.key?.toLowerCase().endsWith('.wav') || p.key?.toLowerCase().endsWith('.m4a') ? 'audio' : 
       'image'
-    )
+    ),
+    isYoutube: !!p.youtubeId
   }));
+
 
   const filteredPhotos = selectedCategory === 'all' 
     ? allPhotos 
@@ -156,9 +158,12 @@ export default function Gallery() {
                   <div className={`relative overflow-hidden aspect-[4/3] ${photo.type === 'audio' ? 'bg-slate-800' : 'bg-slate-100'}`}>
                     {photo.type === 'video' ? (
                       <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                        <i className="ri-play-circle-fill text-6xl group-hover:scale-110 transition-transform"></i>
-                        <span className="text-[10px] font-bold mt-2 uppercase tracking-widest">Video Tribute</span>
+                        <i className={`ri-play-circle-fill text-6xl group-hover:scale-110 transition-transform ${photo.isYoutube ? 'text-rose-500' : ''}`}></i>
+                        <span className="text-[10px] font-bold mt-2 uppercase tracking-widest">
+                          {photo.isYoutube ? 'YouTube Gallery' : 'Video Tribute'}
+                        </span>
                       </div>
+
                     ) : photo.type === 'audio' ? (
                       <div className="w-full h-full flex flex-col items-center justify-center text-amber-500 p-6">
                         <i className="ri-mic-2-fill text-5xl mb-4 text-amber-500/50 group-hover:text-amber-500 transition-colors"></i>
@@ -219,14 +224,28 @@ export default function Gallery() {
             </button>
             
             {lightboxContent.type === 'video' ? (
-              <video 
-                controls 
-                autoPlay 
-                className="max-w-full max-h-full rounded-lg shadow-2xl"
-              >
-                <source src={lightboxContent.src} />
-                Your browser does not support the video tag.
-              </video>
+              lightboxContent.src.includes('youtube.com') || lightboxContent.src.includes('youtu.be') || (allPhotos.find(p => p.src === lightboxContent.src)?.youtubeId) ? (
+                <div className="w-full aspect-video">
+                  <iframe
+                    className="w-full h-full rounded-lg"
+                    src={`https://www.youtube.com/embed/${allPhotos.find(p => p.src === lightboxContent.src)?.youtubeId || lightboxContent.src.split('v=')[1]}`}
+                    title="YouTube video player"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  ></iframe>
+                </div>
+              ) : (
+                <video 
+                  controls 
+                  autoPlay 
+                  className="max-w-full max-h-full rounded-lg shadow-2xl"
+                >
+                  <source src={lightboxContent.src} />
+                  Your browser does not support the video tag.
+                </video>
+              )
+
             ) : (
               <img 
                 src={lightboxContent.src}
