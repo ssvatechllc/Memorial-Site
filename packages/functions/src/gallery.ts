@@ -28,7 +28,7 @@ export async function list(event: any) {
   // Append S3 URL to items
   const items = (result.Items || []).map(item => ({
     ...item,
-    src: `https://${Bucket.Media.bucketName}.s3.amazonaws.com/${item.key}`
+    src: item.src || `https://${Bucket.Media.bucketName}.s3.amazonaws.com/${item.key}`
   }));
 
   return {
@@ -39,6 +39,9 @@ export async function list(event: any) {
 
 export async function create(event: any) {
   const data = JSON.parse(event.body);
+  const isVideo = data.key?.toLowerCase().endsWith('.mp4') || data.key?.toLowerCase().endsWith('.mov') || data.key?.toLowerCase().endsWith('.avi');
+  const isAudio = data.key?.toLowerCase().endsWith('.mp3') || data.key?.toLowerCase().endsWith('.wav') || data.key?.toLowerCase().endsWith('.m4a');
+  
   const galleryItem = {
     id: uuidv4(),
     type: "gallery",
@@ -47,6 +50,8 @@ export async function create(event: any) {
     category: data.category,
     year: data.year,
     key: data.key,
+    contentType: isVideo ? "video" : isAudio ? "audio" : "image",
+    videoStatus: isVideo ? "processing" : undefined,
     date: new Date().toISOString(),
   };
 

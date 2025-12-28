@@ -14,7 +14,10 @@ export default function Gallery() {
     title: '',
     category: 'personal',
     year: new Date().getFullYear().toString(),
+    relationship: '',
+    description: ''
   });
+
 
   useEffect(() => {
     const fetchCustomPhotos = async () => {
@@ -24,40 +27,44 @@ export default function Gallery() {
     fetchCustomPhotos();
   }, []);
 
+  // Sort items by 'order' attribute if present, otherwise fallback to date
+  const sortedItems = [...customPhotos].sort((a: any, b: any) => {
+    if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+    return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+  });
+
+  const allPhotos = sortedItems.map(p => {
+    // Detect type based on key or src, but ignore the 'gallery' indexing type
+    const src = p.src || '';
+    const key = p.key || '';
+    const path = (key || src).toLowerCase();
+    
+    let detectedType = p.contentType || p.type;
+    if (detectedType === 'gallery') detectedType = undefined; // Reset if it's the indexing type
+
+    if (!detectedType) {
+      // If it has a youtubeId, it's definitely a video
+      if (p.youtubeId) detectedType = 'video';
+      else if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.avi') || path.endsWith('.mkv') || path.endsWith('.webm')) detectedType = 'video';
+      else if (path.endsWith('.mp3') || path.endsWith('.wav') || path.endsWith('.m4a')) detectedType = 'audio';
+      else detectedType = 'image';
+    }
+
+    return {
+      ...p,
+      type: detectedType,
+      isYoutube: !!p.youtubeId,
+      thumbnail: p.youtubeId ? `https://img.youtube.com/vi/${p.youtubeId}/mqdefault.jpg` : undefined
+    };
+  });
+
   const categories = [
-    { id: 'all', name: 'All Photos', count: 24 },
-    { id: 'academic', name: 'Academic Life', count: 8 },
-    { id: 'field-work', name: 'Field Work', count: 6 },
-    { id: 'students', name: 'With Students', count: 7 },
-    { id: 'personal', name: 'Personal Moments', count: 3 }
+    { id: 'all', name: 'All Photos', count: allPhotos.length },
+    { id: 'academic', name: 'Academic Life', count: allPhotos.filter(p => p.category === 'academic').length },
+    { id: 'field-work', name: 'Field Work', count: allPhotos.filter(p => p.category === 'field-work').length },
+    { id: 'students', name: 'With Students', count: allPhotos.filter(p => p.category === 'students').length },
+    { id: 'personal', name: 'Personal Moments', count: allPhotos.filter(p => p.category === 'personal').length }
   ];
-
-  // Hardcoded photos removed in favor of dynamic loading from DynamoDB
-  // Use Admin Dashboard -> Manage Content -> Migrate Legacy Data to seed them.
-
-  useEffect(() => {
-    loadGalleryItems();
-  }, []);
-
-  const loadGalleryItems = async () => {
-    const items = await awsClient.getGalleryItems();
-    // Sort items by 'order' attribute if present, otherwise fallback to ID or date
-    const sortedItems = items.sort((a: any, b: any) => {
-        if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
-        return 0;
-    });
-    setCustomPhotos(sortedItems);
-  };
-
-  const allPhotos = customPhotos.map(p => ({
-    ...p,
-    type: p.type || (
-      p.key?.toLowerCase().endsWith('.mp4') || p.key?.toLowerCase().endsWith('.mov') || p.key?.toLowerCase().endsWith('.avi') ? 'video' :
-      p.key?.toLowerCase().endsWith('.mp3') || p.key?.toLowerCase().endsWith('.wav') || p.key?.toLowerCase().endsWith('.m4a') ? 'audio' : 
-      'image'
-    ),
-    isYoutube: !!p.youtubeId
-  }));
 
 
   const filteredPhotos = selectedCategory === 'all' 
@@ -88,7 +95,14 @@ export default function Gallery() {
       if (saveSuccess) {
         alert('Media uploaded successfully!');
         setShowUploadForm(false);
-        setUploadData({ title: '', category: 'personal', year: new Date().getFullYear().toString() });
+        setUploadData({ 
+          title: '', 
+          category: 'personal', 
+          year: new Date().getFullYear().toString(),
+          relationship: '',
+          description: ''
+        });
+
         const items = await awsClient.getGalleryItems();
         setCustomPhotos(items);
       } else {
@@ -157,13 +171,31 @@ export default function Gallery() {
                 <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
                   <div className={`relative overflow-hidden aspect-[4/3] ${photo.type === 'audio' ? 'bg-slate-800' : 'bg-slate-100'}`}>
                     {photo.type === 'video' ? (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                        <i className={`ri-play-circle-fill text-6xl group-hover:scale-110 transition-transform ${photo.isYoutube ? 'text-rose-500' : ''}`}></i>
-                        <span className="text-[10px] font-bold mt-2 uppercase tracking-widest">
-                          {photo.isYoutube ? 'YouTube Gallery' : 'Video Tribute'}
+                      <div className="w-full h-full relative group">
+                        {photo.thumbnail ? (
+                          <img 
+                            src={photo.thumbnail} 
+                            alt={photo.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-900 overflow-hidden text-slate-400">
+                            {photo.src ? (
+                              <video className="absolute inset-0 w-full h-full object-cover opacity-60">
+                                <source src={photo.src} />
+                              </video>
+                            ) : (
+                               <i className={`ri-play-circle-fill text-6xl group-hover:scale-110 transition-transform ${photo.isYoutube ? 'text-rose-500' : ''}`}></i>
+                            )}
+                          </div>
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <i className="ri-play-circle-fill text-6xl text-white/80 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                        </div>
+                        <span className="absolute top-2 right-2 bg-black/60 px-2 py-0.5 rounded text-[8px] font-bold text-white uppercase tracking-widest">
+                          {photo.isYoutube ? 'YouTube' : 'Video'}
                         </span>
                       </div>
-
                     ) : photo.type === 'audio' ? (
                       <div className="w-full h-full flex flex-col items-center justify-center text-amber-500 p-6">
                         <i className="ri-mic-2-fill text-5xl mb-4 text-amber-500/50 group-hover:text-amber-500 transition-colors"></i>
@@ -264,9 +296,10 @@ export default function Gallery() {
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-3xl font-serif text-slate-800">Submit a Photo</h2>
-                  <p className="text-sm text-slate-600 mt-1">Help us preserve memories of Professor Pavanaguru</p>
+                  <h2 className="text-3xl font-serif text-slate-800">Submit Photo or Video</h2>
+                  <p className="text-sm text-slate-600 mt-1">Help us preserve memories of Professor Pavanaguru through photos or video tributes</p>
                 </div>
+
                 <button 
                   onClick={() => setShowUploadForm(false)}
                   className="text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
@@ -276,18 +309,22 @@ export default function Gallery() {
               </div>
 
               <form onSubmit={handleUpload} className="space-y-6">
-                <div>
+                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Select Photo *
+                    Select File (Photo or Video) *
                   </label>
                   <input
                     type="file"
                     ref={fileInputRef}
                     required
                     accept="image/*,video/*,audio/*"
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm bg-slate-50"
                   />
+                  <p className="text-[10px] text-slate-500 mt-1 italic">
+                    Supported: JPG, PNG, MP4, MOV. Videos will be automatically processed for YouTube.
+                  </p>
                 </div>
+
 
                 <div>
                   <label htmlFor="title" className="block text-sm font-medium text-slate-700 mb-2">
@@ -306,7 +343,7 @@ export default function Gallery() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                   <div>
                     <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-2">
                       Category
                     </label>
@@ -315,7 +352,7 @@ export default function Gallery() {
                       name="category"
                       value={uploadData.category}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm"
+                      className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm bg-white"
                     >
                       <option value="academic">Academic Life</option>
                       <option value="field-work">Field Work</option>
@@ -323,6 +360,7 @@ export default function Gallery() {
                       <option value="personal">Personal Moments</option>
                     </select>
                   </div>
+
                   <div>
                     <label htmlFor="year" className="block text-sm font-medium text-slate-700 mb-2">
                       Year
@@ -333,11 +371,53 @@ export default function Gallery() {
                       name="year"
                       value={uploadData.year}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm"
+                      className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm bg-white"
                       placeholder="e.g. 2015"
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label htmlFor="relationship" className="block text-sm font-medium text-slate-700 mb-2">
+                    Your Relationship *
+                  </label>
+                  <select
+                    id="relationship"
+                    name="relationship"
+                    value={uploadData.relationship}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm bg-white"
+                  >
+                    <option value="">Select relationship</option>
+                    <option value="Son">Son</option>
+                    <option value="Daughter">Daughter</option>
+                    <option value="Grandchild">Grandchild</option>
+                    <option value="Spouse">Spouse</option>
+                    <option value="Family Member">Other Family Member</option>
+                    <option value="PhD Student">PhD Student</option>
+                    <option value="Former Student">Former Student</option>
+                    <option value="Colleague">Colleague</option>
+                    <option value="Friend">Friend</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-2">
+                    Description / Story (Optional)
+                  </label>
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={uploadData.description}
+                    onChange={handleInputChange as any}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm bg-white resize-none"
+                    placeholder="Share the story behind this memory..."
+                  />
+                </div>
+
 
                 <div className="flex gap-4 pt-4">
                   <button
@@ -347,9 +427,10 @@ export default function Gallery() {
                   >
                     {isUploading ? (
                       <span className="flex items-center justify-center">
-                        <i className="ri-loader-4-line animate-spin mr-2"></i> Uploading...
+                        <i className="ri-loader-4-line animate-spin mr-2"></i> Processing...
                       </span>
-                    ) : 'Upload Photo'}
+                    ) : 'Submit Media'}
+
                   </button>
                   <button
                     type="button"
@@ -368,18 +449,20 @@ export default function Gallery() {
       {/* Memory Sharing Section */}
       <section className="py-20 bg-slate-800">
         <div className="max-w-4xl mx-auto text-center px-6">
-          <h2 className="text-4xl font-serif text-white mb-6">Share Your Photos</h2>
+          <h2 className="text-4xl font-serif text-white mb-6">Share Photos & Videos</h2>
           <p className="text-xl text-stone-300 mb-8 leading-relaxed">
-            Do you have photos with Professor Pavanaguru that you'd like to share? 
-            Help us preserve these precious memories by contributing to our gallery.
+            Do you have photos or video tributes for Professor Pavanaguru? 
+            Help us preserve these cherished memories by contributing to our digital gallery.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
               onClick={() => setShowUploadForm(true)}
-              className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-4 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap"
+              className="bg-amber-600 hover:bg-amber-700 text-white px-10 py-4 rounded-lg font-medium transition-all shadow-lg hover:shadow-xl cursor-pointer whitespace-nowrap flex items-center justify-center gap-2"
             >
-              Submit Photos
+              <i className="ri-upload-cloud-2-line"></i>
+              Submit Photos or Videos
             </button>
+
             <button 
               onClick={() => window.location.href = '/tribute-wall'}
               className="border-2 border-stone-300 text-stone-300 hover:bg-stone-300 hover:text-slate-800 px-8 py-4 rounded-lg font-medium transition-colors cursor-pointer whitespace-nowrap"

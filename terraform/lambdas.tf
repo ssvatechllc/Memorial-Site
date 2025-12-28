@@ -85,6 +85,9 @@ resource "aws_lambda_function" "site_api" {
       TABLE_NAME = aws_dynamodb_table.content_table.name
       BUCKET_NAME = aws_s3_bucket.media_bucket.id
       ADMIN_KEY  = var.admin_key
+      ADMIN_USERNAME = var.admin_username
+      ADMIN_PASSWORD = var.admin_password
+      SESSION_SECRET = var.session_secret
     }
   }
 }

@@ -36,3 +36,21 @@ variable "google_refresh_token" {
   default     = ""
 }
 
+variable "admin_username" {
+  description = "Admin Username"
+  type        = string
+  default     = "admin"
+}
+
+variable "admin_password" {
+  description = "Admin Password"
+  type        = string
+  sensitive   = true
+}
+
+variable "session_secret" {
+  description = "Secret for JWT session tokens"
+  type        = string
+  sensitive   = true
+  default     = "nanna-memorial-secret-2024"
+}

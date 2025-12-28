@@ -66,11 +66,15 @@ echo "📝 Applying Infrastructure changes..."
 # We need the variables for the deployment
 if [ -f "../.env" ]; then
   ADMIN_KEY=$(grep VITE_ADMIN_KEY "../.env" | cut -d '=' -f2)
+  ADMIN_USER=$(grep VITE_ADMIN_USERNAME "../.env" | cut -d '=' -f2 || echo "admin")
+  ADMIN_PASS=$(grep VITE_ADMIN_PASSWORD "../.env" | cut -d '=' -f2)
   G_CLIENT_ID=$(grep GOOGLE_CLIENT_ID "../.env" | cut -d '=' -f2)
   G_CLIENT_SECRET=$(grep GOOGLE_CLIENT_SECRET "../.env" | cut -d '=' -f2)
   G_REFRESH_TOKEN=$(grep GOOGLE_REFRESH_TOKEN "../.env" | cut -d '=' -f2)
 else
   ADMIN_KEY="temp-admin-key"
+  ADMIN_USER="admin"
+  ADMIN_PASS="temp-pass"
   G_CLIENT_ID=""
   G_CLIENT_SECRET=""
   G_REFRESH_TOKEN=""
@@ -78,6 +82,8 @@ fi
 
 terraform apply -auto-approve \
   -var="admin_key=$ADMIN_KEY" \
+  -var="admin_username=$ADMIN_USER" \
+  -var="admin_password=$ADMIN_PASS" \
   -var="aws_region=$REGION" \
   -var="project_name=$PROJECT_NAME" \
   -var="google_client_id=$G_CLIENT_ID" \

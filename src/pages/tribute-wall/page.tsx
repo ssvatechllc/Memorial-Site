@@ -196,15 +196,17 @@ export default function TributeWall() {
                     className="w-full px-4 py-3 pr-8 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-sm"
                   >
                     <option value="">Select relationship</option>
-                    <option value="Former Student">Former Student</option>
+                    <option value="Son">Son</option>
+                    <option value="Daughter">Daughter</option>
+                    <option value="Grandchild">Grandchild</option>
+                    <option value="Spouse">Spouse</option>
+                    <option value="Family Member">Other Family Member</option>
                     <option value="PhD Student">PhD Student</option>
-                    <option value="Master's Student">Master's Student</option>
-                    <option value="Undergraduate Student">Undergraduate Student</option>
+                    <option value="Former Student">Former Student</option>
                     <option value="Colleague">Colleague</option>
-                    <option value="Research Collaborator">Research Collaborator</option>
-                    <option value="Family Member">Family Member</option>
                     <option value="Friend">Friend</option>
                     <option value="Other">Other</option>
+
                   </select>
                 </div>
 

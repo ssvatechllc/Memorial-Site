@@ -8,6 +8,12 @@
 const API_BASE_URL = import.meta.env.VITE_AWS_API_URL || '';
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY || '';
 
+// Token storage helpers
+const TOKEN_KEY = 'admin_session_token';
+const getToken = () => localStorage.getItem(TOKEN_KEY);
+const setToken = (token: string) => localStorage.setItem(TOKEN_KEY, token);
+const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+
 export interface Tribute {
   id?: string;
   name: string;
@@ -23,11 +29,15 @@ export interface GalleryItem {
   title: string;
   category: string;
   year: string;
+  relationship: string;
+  description?: string;
   src?: string;
   key?: string;
   status?: 'pending' | 'approved';
+  isYoutube?: boolean;
+  thumbnail?: string;
+  videoStatus?: 'processing' | 'processed';
   youtubeId?: string;
-  videoStatus?: 'processing' | 'processed' | 'failed';
 }
 
 export interface UploadResponse {
@@ -35,80 +45,113 @@ export interface UploadResponse {
   key: string;
 }
 
-export const awsClient = {
-  /**
-   * Fetch approved tributes from DynamoDB
-   */
-  async getTributes(): Promise<Tribute[]> {
-    if (!API_BASE_URL) return [];
+class AWSClient {
+  private baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
+
+  private async request(path: string, options: RequestInit = {}) {
+    const headers = new Headers(options.headers || {});
     
+    // Add Authorization header if token exists
+    const token = getToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    } else if (ADMIN_KEY) {
+      // Legacy/Fallback support
+      headers.set('x-admin-key', ADMIN_KEY);
+    }
+
+    if (options.body && !headers.get('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        clearToken();
+      }
+      throw new Error(`API Request failed: ${response.statusText} (Status: ${response.status})`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return response.text();
+  }
+
+  async login(username: string, password: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/tributes`);
-      if (!response.ok) throw new Error('Failed to fetch tributes');
-      return await response.json();
+      const result: any = await this.request('/admin/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+      });
+      if (result.token) {
+        setToken(result.token);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Login failed', e);
+      return false;
+    }
+  }
+
+  logout() {
+    clearToken();
+  }
+
+  isLoggedIn(): boolean {
+    return !!getToken();
+  }
+
+  async getTributes(): Promise<Tribute[]> {
+    try {
+      const data = await this.request('/tributes');
+      return data as Tribute[];
     } catch (error) {
       console.error('Error fetching tributes:', error);
       return [];
     }
-  },
+  }
 
-  /**
-   * Submit a new tribute for review
-   */
   async submitTribute(tribute: Tribute): Promise<boolean> {
-    if (!API_BASE_URL) {
-      console.warn('AWS_API_URL not configured. Tribute not submitted.');
-      return false;
-    }
-
     try {
-      const response = await fetch(`${API_BASE_URL}/tributes`, {
+      await this.request('/tributes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ ...tribute, status: 'pending' }),
       });
-      return response.ok;
+      return true;
     } catch (error) {
       console.error('Error submitting tribute:', error);
       return false;
     }
-  },
+  }
 
-  /**
-   * Get a pre-signed S3 URL for uploading media
-   */
   async getUploadUrl(fileName: string, fileType: string): Promise<UploadResponse | null> {
-    if (!API_BASE_URL) return null;
-
     try {
-      const response = await fetch(`${API_BASE_URL}/upload-url`, {
+      return await this.request('/upload-url', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ fileName, fileType }),
       });
-      
-      if (!response.ok) throw new Error('Failed to get upload URL');
-      return await response.json();
     } catch (error) {
       console.error('Error getting upload URL:', error);
       return null;
     }
-  },
+  }
 
-  /**
-   * Upload a file directly to S3 using a pre-signed URL
-   */
   async uploadToS3(uploadUrl: string, file: File): Promise<boolean> {
     try {
       const response = await fetch(uploadUrl, {
         method: 'PUT',
-        headers: {
-          'Content-Type': file.type,
-        },
+        headers: { 'Content-Type': file.type },
         body: file,
       });
       return response.ok;
@@ -116,170 +159,117 @@ export const awsClient = {
       console.error('Error uploading to S3:', error);
       return false;
     }
-  },
+  }
 
-  /**
-   * Save gallery item metadata (title, category, etc.)
-   */
-  async saveGalleryItem(item: { title: string, category: string, year: string, key: string }): Promise<boolean> {
-    if (!API_BASE_URL) return false;
-
+  async saveGalleryItem(item: GalleryItem): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/gallery`, {
+      await this.request('/gallery', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ ...item, status: 'pending' }),
       });
-      return response.ok;
+      return true;
     } catch (error) {
       console.error('Error saving gallery item:', error);
       return false;
     }
-  },
+  }
 
-  /**
-   * Fetch gallery items from DynamoDB
-   */
   async getGalleryItems(): Promise<GalleryItem[]> {
-    if (!API_BASE_URL) return [];
-
     try {
-      const response = await fetch(`${API_BASE_URL}/gallery`);
-      if (!response.ok) throw new Error('Failed to fetch gallery items');
-      return await response.json();
+      const data = await this.request('/gallery');
+      return data as GalleryItem[];
     } catch (error) {
       console.error('Error fetching gallery items:', error);
       return [];
     }
-  },
+  }
 
-  /**
-   * ADMIN: Fetch pending content for moderation
-   */
   async getPendingContent(): Promise<{ tributes: Tribute[], gallery: GalleryItem[] }> {
-    if (!API_BASE_URL || !ADMIN_KEY) return { tributes: [], gallery: [] };
-
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/pending`, {
-        headers: { 'x-admin-key': ADMIN_KEY }
-      });
-      if (!response.ok) throw new Error('Failed to fetch pending content');
-      return await response.json();
+      return await this.request('/admin/pending');
     } catch (error) {
       console.error('Error fetching pending content:', error);
       return { tributes: [], gallery: [] };
     }
-  },
+  }
 
-  /**
-   * ADMIN: Update content status (bulk support)
-   */
   async updateContentStatus(type: 'tributes' | 'gallery', idOrIds: string | string[], status: 'approved' | 'deleted'): Promise<boolean> {
-    if (!API_BASE_URL || !ADMIN_KEY) return false;
-
     const body = Array.isArray(idOrIds) 
       ? { type, ids: idOrIds, status }
       : { type, id: idOrIds, status };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/status`, {
+      await this.request('/admin/status', {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-admin-key': ADMIN_KEY 
-        },
         body: JSON.stringify(body),
       });
-      return response.ok;
+      return true;
     } catch (error) {
       console.error('Error updating content status:', error);
       return false;
     }
-  },
+  }
 
-  /**
-   * ADMIN: Fetch approved content for management
-   */
   async getApprovedContent(): Promise<{ tributes: Tribute[], gallery: GalleryItem[] }> {
-    if (!API_BASE_URL || !ADMIN_KEY) return { tributes: [], gallery: [] };
-
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/approved`, {
-        headers: { 'x-admin-key': ADMIN_KEY }
-      });
-      if (!response.ok) throw new Error('Failed to fetch approved content');
-      return await response.json();
+      return await this.request('/admin/approved');
     } catch (error) {
       console.error('Error fetching approved content:', error);
       return { tributes: [], gallery: [] };
     }
-  },
+  }
 
-  /**
-   * ADMIN: Delete approved content
-   */
   async deleteApprovedContent(id: string): Promise<boolean> {
-    if (!API_BASE_URL || !ADMIN_KEY) return false;
-
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/content?id=${encodeURIComponent(id)}`, {
+      await this.request(`/admin/content?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-admin-key': ADMIN_KEY 
-        },
         body: JSON.stringify({ id: String(id) }),
       });
-      return response.ok;
+      return true;
     } catch (error) {
       console.error('Error deleting approved content:', error);
       return false;
     }
-  },
+  }
 
-  /**
-   * ADMIN: Reorder gallery items
-   */
   async reorderGallery(items: { id: string, order: number }[]): Promise<boolean> {
-    if (!API_BASE_URL || !ADMIN_KEY) return false;
-
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/gallery/order`, {
+      await this.request('/admin/gallery/order', {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-admin-key': ADMIN_KEY 
-        },
         body: JSON.stringify({ items }),
       });
-      return response.ok;
+      return true;
     } catch (error) {
       console.error('Error reordering gallery:', error);
       return false;
     }
-  },
+  }
 
-  /**
-   * ADMIN: Seed legacy gallery items
-   */
-  async seedGallery(items: any[]): Promise<boolean> {
-    if (!API_BASE_URL || !ADMIN_KEY) return false;
-
+  async updateGalleryItem(id: string, updates: Partial<GalleryItem>): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/seed`, {
+      await this.request('/admin/gallery/item', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, updates }),
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating gallery item:', error);
+      return false;
+    }
+  }
+
+  async seedGallery(items: any[]): Promise<boolean> {
+    try {
+      await this.request('/admin/seed', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-admin-key': ADMIN_KEY 
-        },
         body: JSON.stringify({ items }),
       });
-      return response.ok;
+      return true;
     } catch (error) {
       console.error('Error seeding gallery:', error);
       return false;
     }
   }
-};
+}
+
+export const awsClient = new AWSClient(API_BASE_URL);
