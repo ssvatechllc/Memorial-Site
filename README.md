@@ -9,8 +9,10 @@ A modern, serverless memorial website dedicated to celebrating the life and lega
 - **Video Support**: Native playback for MP4/MOV memories.
 - **Admin Dashboard**: A secure portal for moderators to manage content.
   - **Review Queue**: Approve or reject pending tributes and media uploads.
+  - **Admin Inbox**: Read and manage messages sent through the contact form.
   - **Content Management**: Delete approved items or reorder gallery images.
   - **Bulk Actions**: Select multiple items to approve/reject in one go.
+- **Family Residence**: Dedicated section with address and street view imagery.
 - **Secure Uploads**: Direct-to-S3 uploads using signed URLs (serverless & scalable).
 
 ## 🏗️ Technical Architecture
@@ -267,6 +269,26 @@ Request a presigned S3 URL for direct file upload.
 }
 ```
 
+#### `POST /messages`
+
+Submit a contact form message.
+
+**Request Body:**
+
+```json
+{
+  "firstName": "Jane",
+  "lastName": "Smith",
+  "email": "jane@example.com",
+  "phone": "+123456789",
+  "relationship": "Colleague",
+  "subject": "Memorial Inquiry",
+  "message": "I would like to..."
+}
+```
+
+**Response:** `201 Created`
+
 ### Admin Endpoints
 
 All admin endpoints require the `x-admin-key` header.
@@ -288,7 +310,7 @@ Fetch pending tributes and gallery items awaiting moderation.
 
 #### `PATCH /admin/status`
 
-Approve or reject content (supports bulk operations).
+Approve or reject content, or mark messages as read.
 
 **Request Body:**
 
@@ -297,6 +319,16 @@ Approve or reject content (supports bulk operations).
   "type": "tributes",
   "id": "uuid",
   "status": "approved"
+}
+```
+
+Or for messages:
+
+```json
+{
+  "type": "message",
+  "id": "uuid",
+  "status": "read"
 }
 ```
 
@@ -321,6 +353,27 @@ Fetch all approved content for management.
   "tributes": [...],
   "gallery": [...]
 }
+```
+
+#### `GET /admin/messages`
+
+Fetch all visitor messages for the admin inbox.
+
+**Response:**
+
+```json
+[
+  {
+    "id": "uuid",
+    "firstName": "Jane",
+    "lastName": "Smith",
+    "email": "jane@example.com",
+    "subject": "...",
+    "message": "...",
+    "status": "new",
+    "date": "2024-12-25"
+  }
+]
 ```
 
 #### `DELETE /admin/content?id=<uuid>`
@@ -366,9 +419,9 @@ Reorder gallery items.
 
 ```javascript
 {
-  id: "uuid",                    // Unique identifier
-  type: "tribute" | "gallery",   // Content type
-  status: "pending" | "approved",// Moderation status
+  id: "uuid",                         // Unique identifier
+  type: "tribute" | "gallery" | "message", // Content type
+  status: "pending" | "approved" | "new" | "read", // Moderation status
 
   // Tribute-specific
   name: "string",
@@ -381,8 +434,14 @@ Reorder gallery items.
   title: "string",
   category: "academic" | "field-work" | "personal" | "students",
   year: "string",
-  key: "s3-object-key",          // S3 path to media file
-  order: 0                       // Display order (lower = first)
+  key: "s3-object-key",               // S3 path to media file
+  order: 0,                           // Display order (lower = first)
+
+  // Message-specific
+  firstName: "string",
+  lastName: "string",
+  phone: "string",
+  subject: "string"
 }
 ```
 
