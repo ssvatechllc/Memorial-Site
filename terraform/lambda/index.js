@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const { DynamoDBDocumentClient, QueryCommand, PutCommand, UpdateCommand, DeleteCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
+const { DynamoDBDocumentClient, QueryCommand, PutCommand, UpdateCommand, DeleteCommand, GetCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb");
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const crypto = require("crypto");
@@ -137,6 +137,20 @@ exports.handler = async (event) => {
       const url = await getSignedUrl(s3Client, command, { expiresIn: 300 });
       return response(200, { uploadUrl: url, key });
     }
+    
+    // 5.5 Message Submit
+    if (path === "/messages" && method === "POST") {
+      const data = JSON.parse(event.body);
+      const item = {
+        id: crypto.randomUUID(),
+        type: "message",
+        status: "new",
+        ...data,
+        date: new Date().toISOString()
+      };
+      await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
+      return response(201, { success: true });
+    }
 
     // 6. Admin: List Pending
     // 6. Admin: List Pending
@@ -169,13 +183,13 @@ exports.handler = async (event) => {
       if (targetIds.length === 0) return response(400, { error: "No IDs provided" });
 
       for (const targetId of targetIds) {
-        if (status === "approved") {
+        if (status === "approved" || status === "read") {
           await docClient.send(new UpdateCommand({
             TableName: TABLE_NAME,
             Key: { id: targetId },
             UpdateExpression: "SET #status = :status",
             ExpressionAttributeNames: { "#status": "status" },
-            ExpressionAttributeValues: { ":status": "approved" }
+            ExpressionAttributeValues: { ":status": status }
           }));
         } else {
           await docClient.send(new DeleteCommand({ TableName: TABLE_NAME, Key: { id: targetId } }));
@@ -204,6 +218,18 @@ exports.handler = async (event) => {
           src: i.src || `/${i.key}`
         })).sort((a, b) => (a.order || 0) - (b.order || 0)) // Sort by order
       });
+    }
+
+    // 8.5 Admin: List Messages
+    if (path === "/admin/messages" && method === "GET") {
+      if (!isAuthorized()) return response(401, { error: "Unauthorized" });
+      const result = await docClient.send(new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "#type = :type",
+        ExpressionAttributeNames: { "#type": "type" },
+        ExpressionAttributeValues: { ":type": "message" }
+      }));
+      return response(200, result.Items || []);
     }
 
     // 9. Admin: Delete Approved Item

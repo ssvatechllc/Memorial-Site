@@ -8,10 +8,34 @@ export default function Contact() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    alert("Thank you for your message. We will get back to you soon.");
-    form.reset();
-    setIsSubmitting(false);
+    setIsSubmitting(true);
+    setError("");
+
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      firstName: formData.get("first_name") as string,
+      lastName: formData.get("last_name") as string,
+      email: formData.get("email") as string,
+      phone: formData.get("phone") as string,
+      relationship: formData.get("relationship") as string,
+      subject: formData.get("subject") as string,
+      message: formData.get("message") as string,
+    };
+
+    try {
+      const { awsClient } = await import("../../utils/aws-client");
+      const success = await awsClient.submitMessage(data);
+      if (success) {
+        setFormSubmitted(true);
+      } else {
+        setError("Failed to send message. Please try again later.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("An error occurred. Please try again later.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -64,7 +88,7 @@ export default function Contact() {
                       <div className="space-y-4 text-sm">
                         <p className="flex items-center text-slate-700">
                           <i className="ri-mail-line mr-2 text-blue-600"></i>
-                          family@drpavanaguru.org
+                          ssvatechllc@gmail.com
                         </p>
                         <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
                           <p className="text-blue-800 font-medium mb-1 flex items-center">
@@ -347,8 +371,11 @@ export default function Contact() {
                 </div>
               </div>
               <div className="h-64 bg-slate-200 rounded-lg flex items-center justify-center overflow-hidden">
-                {/* Image placeholder or actual map embed if preferred, but for now just showing it's a map location */}
-                <i className="ri-map-2-line text-6xl text-slate-400"></i>
+                <img
+                  src="/assets/images/family-residence.jpg"
+                  alt="GuruLakshmi Residency - Family Residence"
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
           </div>

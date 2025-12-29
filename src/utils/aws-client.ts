@@ -40,6 +40,19 @@ export interface GalleryItem {
   youtubeId?: string;
 }
 
+export interface Message {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  relationship: string;
+  subject: string;
+  message: string;
+  date?: string;
+  status?: 'new' | 'read';
+}
+
 export interface UploadResponse {
   uploadUrl: string;
   key: string;
@@ -135,6 +148,19 @@ class AWSClient {
     }
   }
 
+  async submitMessage(message: Message): Promise<boolean> {
+    try {
+      await this.request('/messages', {
+        method: 'POST',
+        body: JSON.stringify({ ...message }),
+      });
+      return true;
+    } catch (error) {
+      console.error('Error submitting message:', error);
+      return false;
+    }
+  }
+
   async getUploadUrl(fileName: string, fileType: string): Promise<UploadResponse | null> {
     try {
       return await this.request('/upload-url', {
@@ -184,6 +210,15 @@ class AWSClient {
     }
   }
 
+  async getMessages(): Promise<Message[]> {
+    try {
+      return await this.request('/admin/messages');
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      return [];
+    }
+  }
+
   async getPendingContent(): Promise<{ tributes: Tribute[], gallery: GalleryItem[] }> {
     try {
       return await this.request('/admin/pending');
@@ -193,7 +228,7 @@ class AWSClient {
     }
   }
 
-  async updateContentStatus(type: 'tributes' | 'gallery', idOrIds: string | string[], status: 'approved' | 'deleted'): Promise<boolean> {
+  async updateContentStatus(type: 'tributes' | 'gallery' | 'message', idOrIds: string | string[], status: 'approved' | 'deleted' | 'read'): Promise<boolean> {
     const body = Array.isArray(idOrIds) 
       ? { type, ids: idOrIds, status }
       : { type, id: idOrIds, status };
